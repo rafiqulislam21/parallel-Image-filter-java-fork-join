@@ -1,6 +1,5 @@
 package testimagefilter;
 
-
 /**
  * Iterative nine-point image convolution filter working on linearized image. 
  * In each of the NRSTEPS iteration steps, the average RGB-value of each pixel 
