@@ -89,19 +89,19 @@ public class TestImageFilter {
                 
                 
 //image verification---------------------------------------------------
-        
+
         if(Arrays.equals(dstSql, dstPrll)){
             System.out.println("Output image verified successfully!");
         }else{
             System.out.println("Output image not verified!");
         }
-                
+               
 //speed up compersion--------------------------------------------------
         float speedUp = (float)tSequential/tParallel;
         if(speedUp >= 0.7*totalThreadUsed){
-            System.out.println("Speedup: "+speedUp+" ok (>= "+0.7*totalThreadUsed+" )");
+            System.out.println("Speedup: "+speedUp+" ok ( >= "+0.7*totalThreadUsed+" )");
         }else{
-            System.out.println("Speedup: "+speedUp+" not ok (< "+0.7*totalThreadUsed+" )");
+            System.out.println("Speedup: "+speedUp+" not ok ( < "+0.7*totalThreadUsed+" )");
         }
                     
 

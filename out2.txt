@@ -1,7 +1,9 @@
-Source image: IMAGE1.JPG
-Image size is 6000x4000
+Source image: IMAGE2.JPG
+Image size is 7952x5304
 
-Starting sequential image filter.
+Available processors: 4
+
+Starting sequential image filter...
 Sequential image filter took 86033 milliseconds.
 Output image: FilteredIMAGE1.JPG
 

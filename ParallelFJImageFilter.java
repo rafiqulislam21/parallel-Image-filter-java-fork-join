@@ -16,7 +16,6 @@ public class ParallelFJImageFilter{
     private int width;
     private int height;
     
-    private ReentrantLock lock = new ReentrantLock();
     private final int NRSTEPS = 100;  
     int totalThreads = 2;
     int Threshold;
@@ -31,7 +30,8 @@ public class ParallelFJImageFilter{
 	    this.width = w;
 	    this.height = h;
         
-        Threshold = width/totalThreads;
+        // Threshold = (height/totalThreads)*width;
+        Threshold = (height*width)/totalThreads;
         // System.out.println("width===="+width);
         // System.out.println("threads used===="+totalThreads);
         // System.out.println("threshold===="+Threshold);
@@ -42,9 +42,17 @@ public class ParallelFJImageFilter{
     public void apply(int nthreads) {
         ForkJoinPool pool = new ForkJoinPool(nthreads);
         System.out.println("Starting parallel image filter using "+Integer.toString(nthreads)+" threads...");
-        InnerFJImageFilter task = new InnerFJImageFilter(src, dst, 1, height);
+        
         startTimeP = System.currentTimeMillis();
-        pool.invoke(task);
+        for (int steps = 0; steps < NRSTEPS; steps++) {
+            pool.invoke(new InnerFJImageFilter(src, dst, 0, height));
+            // swap references
+            int[] help; 
+            help = src; 
+            src = dst;
+            dst = help;
+        
+        }
         endTimeP = System.currentTimeMillis();
     }
     
@@ -61,7 +69,6 @@ public class ParallelFJImageFilter{
         public InnerFJImageFilter(int[] src, int[] dst, int start, int end) {
             this.src = src;
             this.dst = dst;
-
             this.start = start;
             this.end = end;
         }
@@ -69,8 +76,8 @@ public class ParallelFJImageFilter{
         public void filterProcess() {
         
             int index, pixel;
-            for (int steps = 0; steps < NRSTEPS; steps++) {
-                for (int i = start; i < end - 1; i++) {
+            
+                for (int i = start+1; i < end - 1; i++) {
                     for (int j = 1; j < width - 1; j++) {
                         float rt = 0, gt = 0, bt = 0;
                         for (int k = i - 1; k <= i + 1; k++) {
@@ -97,33 +104,24 @@ public class ParallelFJImageFilter{
                         int dpixel = (0xff000000) | (((int) rt / 9) << 16) | (((int) gt / 9) << 8) | (((int) bt / 9));
                         dst[index] = dpixel;
                     }
-                }
-                // swap references
-                try{
-                    lock.lock();
-                    int[] help; 
-                    help = src; 
-                    src = dst;
-                    dst = help;
-                }finally{
-                    lock.unlock();
-                }
-                            
-                        
-            }
+                }           
+            
         }
     
         @Override
         protected void compute() {
             
+            // int size = end-start;
             int size = end-start;
             // System.out.println("size here------------"+size);
+            
              if (size < Threshold) {
+                 
                 filterProcess();
             }else{
               int mid = (end+start) / 2;
-              InnerFJImageFilter task1 = new InnerFJImageFilter(src, dst, start, mid);
-              InnerFJImageFilter task2 = new InnerFJImageFilter(src, dst, mid, end);
+              InnerFJImageFilter task1 = new InnerFJImageFilter(src, dst, start, start+mid);
+              InnerFJImageFilter task2 = new InnerFJImageFilter(src, dst, start+mid, end);
               ForkJoinTask.invokeAll(task1,task2);
           }
       }
