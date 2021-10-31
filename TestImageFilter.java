@@ -1,109 +1,144 @@
-package testimagefilter;
+package filter;
 
+import javax.imageio.IIOException;
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import javax.imageio.IIOException;
-
-import javax.imageio.ImageIO;
+import java.io.IOException;
 import java.util.Arrays;
-
-
-
 
 public class TestImageFilter {
 
-	public static void main(String[] args) throws Exception {
-		
-		BufferedImage image = null;
-		String srcFileName = null;
-                
-		try {
-			srcFileName = args[0];
-                       
-			File srcFile = new File(srcFileName);
-			image = ImageIO.read(srcFile);
-		}
-		catch (ArrayIndexOutOfBoundsException e) {
-			System.out.println("Usage: java TestAll <image-file>");
-			System.exit(1);
-		}
-		catch (IIOException e) {
-			System.out.println("Error reading image file " + srcFileName + " !");
-			System.exit(1);
-		}
+    private static final int[] threadList = { 1, 2, 4, 8, 16, 32 };
+    private static final double[] speedUpVal = { 0.7, 1.4, 2.8, 5.6, 11.2, 0.0 };
 
-		System.out.println("Source image: " + srcFileName);
+    private static String sourceFilePath = null;
+    private static String sourceFileName = null;
+    private static String srcFileName = null;
 
-		int w = image.getWidth();
-		int h = image.getHeight();
-		System.out.println("Image size is " + w + "x" + h);
-		System.out.println();
-	
-		int[] srcSql = image.getRGB(0, 0, w, h, null, 0, w);
-		int[] srcPrll = image.getRGB(0, 0, w, h, null, 0, w);
-		int[] dstSql = new int[srcSql.length];
-		int[] dstPrll = new int[srcPrll.length];
-                
-        int processors = Runtime.getRuntime().availableProcessors();
-        System.out.println("Available processors: "+Integer.toString(processors)+"\n");
-                
-//sequential start---------------------------------------------------
-     	System.out.println("Starting sequential image filter...");
+    private static long timeSequential;
+    private static long timeParallel;
 
-		long startTimeSql = System.currentTimeMillis();
-		ImageFilter filterSql = new ImageFilter(srcSql, dstSql, w, h);
-		filterSql.apply();
-		long endTimeSql = System.currentTimeMillis();
+    public static void main(String[] args) throws Exception {
+        
+        BufferedImage image = null;
+        try {
+            srcFileName = args[0];
+            File srcFile = new File(srcFileName);
+            sourceFilePath = srcFile.getAbsolutePath();
+            sourceFileName = srcFile.getName();
+            image = ImageIO.read(srcFile);
+        } catch (ArrayIndexOutOfBoundsException e) {
+            System.out.println("Usage: java TestAll <image-file>");
+            System.exit(1);
+        } catch (IIOException e) {
+            System.out.println("Error reading image file " + srcFileName + " !");
+            System.exit(1);
+        }
 
-		long tSequential = endTimeSql - startTimeSql; 
-		System.out.println("Sequential image filter took " + tSequential + " milliseconds.");
+        System.out.println("Source image: " + srcFileName);
 
-        BufferedImage dstImageSql = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-		dstImageSql.setRGB(0, 0, w, h, dstSql, 0, w);
+        int width = image.getWidth();
+        int height = image.getHeight();
+        System.out.println("Image size is " + width + "x" + height);
 
-        String dstNameSql = "sqlFiltered" + srcFileName;
-		File dstFileSql = new File(dstNameSql);
-		ImageIO.write(dstImageSql, "JPG", dstFileSql);
-		System.out.println("Output image: " + dstNameSql+"\n");	
-//sequential end-------------------------------------------------------
-                
-                
-//parallel start-------------------------------------------------------
-                
-        ParallelFJImageFilter filterPrll = new ParallelFJImageFilter(srcPrll, dstPrll, w, h);
-        long startTimePrll = filterPrll.startTimeP;
-        long endTimePrll = filterPrll.endTimeP;
-        long tParallel = endTimePrll - startTimePrll;
-        int totalThreadUsed = filterPrll.totalThreads;
-        System.out.println("Parallel image filter took " + tParallel + " milliseconds using "+totalThreadUsed+" threads.");
-                
-                
-		BufferedImage dstImagePrll = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-		dstImagePrll.setRGB(0, 0, w, h, dstPrll, 0, w);
+//sequential part start----------------------------------------------------------
+        int[] sequentialSrc = image.getRGB(0, 0, width, height, null, 0, width);
+        int[] sequentialDst = new int[sequentialSrc.length];
 
-        String dstName = "pFiltered" + srcFileName;
-		File dstFilePrll = new File(dstName);
-		ImageIO.write(dstImagePrll, "JPG", dstFilePrll);
-		System.out.println("Output image: " + dstName);
-//parallel end---------------------------------------------------------
-                
-                
-//image verification---------------------------------------------------
+        runSequentialFilter(sequentialSrc, sequentialDst, width, height);
+//sequential part end------------------------------------------------------------
 
-        if(Arrays.equals(dstSql, dstPrll)){
+//parallel part start------------------------------------------------------------
+        System.out.println("\nAvailable processors: " + Runtime.getRuntime().availableProcessors());
+
+        for (int i = 0; i < threadList.length; i++) {
+            // Reset the source and destination for new index
+            int[] parallelSrc = image.getRGB(0, 0, width, height, null, 0, width);
+            int[] parallelDst = new int[parallelSrc.length];
+
+            runParallelFilter(parallelSrc, parallelDst, width, height, threadList[i]);
+
+
+            verifyImageFilter(sequentialDst, parallelDst);
+            displaySpeedUp(speedUpVal[i]);
+
+        }
+//parallel part end------------------------------------------------------------
+    }
+
+
+
+//sequential filter, function---------------------------------------------------
+private static void runSequentialFilter(int[] src, int[] dst, final int width, final int height) throws IOException {
+    System.out.println("\nStarting sequential image filter....");
+
+    final long startTime = System.currentTimeMillis();
+    final ImageFilter filter0 = new ImageFilter(src, dst, width, height);
+    filter0.apply();
+    final long endTime = System.currentTimeMillis();
+
+    final long totalTime = endTime - startTime;
+    System.out.println("Sequential image filter took " + totalTime + " milliseconds.");
+    timeSequential = totalTime;
+
+    BufferedImage dstImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+    dstImage.setRGB(0, 0, width, height, dst, 0, width);
+
+    String filteredFileName = sourceFilePath.replace(sourceFileName, "Filtered" + sourceFileName);
+    final File dstFile = new File(filteredFileName);
+
+    ImageIO.write(dstImage, "jpg", dstFile);
+
+    System.out.println("Output image: " + dstFile.getName());
+}
+
+
+//parallel filter, function-----------------------------------------------------
+    private static void runParallelFilter(int[] src, int[] dst, final int width, final int height, final int numOfThreads) throws IOException {
+        System.out.println("\nStarting parallel image filter using " + numOfThreads + " threads....");
+
+
+        ParallelFJImageFilter filter1 = new ParallelFJImageFilter(src, dst, width, height);
+        filter1.apply(numOfThreads);
+        long totalTime = filter1.totalTime;
+        timeParallel = totalTime;
+        System.out.println("Parallel image filter took " + totalTime + " milliseconds using " + numOfThreads + " threads.");
+        
+        final BufferedImage dstImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        dstImage.setRGB(0, 0, width, height, dst, 0, width);
+
+        final String filteredFileName = sourceFilePath.replace(sourceFileName, "ParallelFiltered" + sourceFileName);
+        final File dstFile = new File(filteredFileName);
+
+        ImageIO.write(dstImage, "jpg", dstFile);
+
+        System.out.println("Output image (parallel filter): " + dstFile.getName());
+    }
+
+//verify parallel filter image and sequential image, function--------------------------------------
+    private static void verifyImageFilter(int[] source, int[] destination) {
+        boolean isValid = Arrays.equals(source, destination);
+
+        if (isValid)
             System.out.println("Output image verified successfully!");
-        }else{
-            System.out.println("Output image not verified!");
-        }
-               
-//speed up compersion--------------------------------------------------
-        float speedUp = (float)tSequential/tParallel;
-        if(speedUp >= 0.7*totalThreadUsed){
-            System.out.println("Speedup: "+speedUp+" ok ( >= "+0.7*totalThreadUsed+" )");
-        }else{
-            System.out.println("Speedup: "+speedUp+" not ok ( < "+0.7*totalThreadUsed+" )");
-        }
-                    
+        else
+            System.out.println("Output image verification failed!");
+    }
 
-	}
+//compare parallel efficiency with sequential, function--------------------------------------------
+    private static void displaySpeedUp(double speedSequential) {
+        double speedUp = (double) timeSequential / timeParallel;
+
+        if (speedSequential > 0) {
+            if(speedUp >= speedSequential){
+                System.out.println("Speedup: " + speedUp + " ok (>= " + speedSequential + ")");
+            }else{
+                System.out.println("Speedup: " + speedUp +  " not ok (>= " + speedSequential + ")");
+            }
+        } else {
+            System.out.println("Speedup: " + speedUp);
+        }
+    }
+
 }

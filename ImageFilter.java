@@ -1,11 +1,12 @@
-package testimagefilter;
-
+package filter;
 /**
  * Iterative nine-point image convolution filter working on linearized image. 
  * In each of the NRSTEPS iteration steps, the average RGB-value of each pixel 
  * in the source array is computed taking into account the pixel and its 8 neighbor 
  * pixels (in 2D) and written to the destination array.
  */
+
+
 public class ImageFilter {
 	private int[] src;
 	private int[] dst;
